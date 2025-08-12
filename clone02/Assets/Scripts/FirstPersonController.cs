@@ -21,20 +21,36 @@ public class FirstPersonController : MonoBehaviour
     [SerializeField] private Camera mainCamera;
     [SerializeField] private PlayerInputHandler playerInputHandler;
 
+    [Header("Teleport Settings")]
+    [SerializeField] private float teleportRange = 15f;
+    [SerializeField] private LayerMask teleportMask; 
+    [SerializeField] private GameObject teleportMarkerPrefab;
+    [SerializeField] private float markerYOffset = 0.05f;
+
     private Vector3 currentMovement;
     private float verticalRotation;
+    private GameObject teleportMarkerInstance;
+    private bool hasValidTeleportPoint;
+    private Vector3 teleportPoint;
     private float CurrentSpeed => walkSpeed * (playerInputHandler.SprintTriggered ? sprintMultiplier : 1);
 
     void Start()
     {
         Cursor.lockState = CursorLockMode.Locked;
         Cursor.visible = false;
+
+        if (teleportMarkerPrefab != null)
+        {
+            teleportMarkerInstance = Instantiate(teleportMarkerPrefab);
+            teleportMarkerInstance.SetActive(false);
+        }
     }
 
     void Update()
     {
         HandleMovement();
         HandleRotation();
+        HandleTeleportation();
     }
 
     private Vector3 CalculateWorldDirection()
@@ -91,6 +107,46 @@ public class FirstPersonController : MonoBehaviour
 
         ApplyHorizontalRotation(mouseXRotation);
         ApplyVerticalRotation(mouseYRotation);
+    }
+
+    private void HandleTeleportation()
+    {
+        if (playerInputHandler.TeleportTriggered)
+        {
+            Ray ray = new Ray(mainCamera.transform.position, mainCamera.transform.forward);
+            RaycastHit hit;
+
+            if (Physics.Raycast(ray, out hit, teleportRange, teleportMask))
+            {
+                hasValidTeleportPoint = true;
+                teleportPoint = hit.point;
+                if (teleportMarkerInstance != null)
+                {
+                    teleportMarkerInstance.transform.position = hit.point + Vector3.up * markerYOffset;
+                    teleportMarkerInstance.SetActive(true);
+                }
+            }
+            else
+            {
+                hasValidTeleportPoint = false;
+                if (teleportMarkerInstance != null)
+                    teleportMarkerInstance.SetActive(false);
+            }
+        }
+        else
+        {
+            if (hasValidTeleportPoint)
+            {
+                characterController.enabled = false;
+                transform.position = teleportPoint;
+                characterController.enabled = true;
+            }
+
+            if (teleportMarkerInstance != null)
+                teleportMarkerInstance.SetActive(false);
+
+            hasValidTeleportPoint = false;
+        }
     }
 
 }
