@@ -27,17 +27,36 @@ public class FirstPersonController : MonoBehaviour
     [SerializeField] private GameObject teleportMarkerPrefab;
     [SerializeField] private float markerYOffset = 0.05f;
 
+    [Header("Teleport Visuals")]
+    [SerializeField] private float pulseSpeed = 3f;
+    [SerializeField] private float pulseScale = 0.2f;
+
+    [Header("Aim Settings")]
+    [SerializeField] private float aimTimeScale = 0.3f;
+    [SerializeField] private float zoomFOV = 40f;
+    [SerializeField] private float zoomSpeed = 10f;
+
     private Vector3 currentMovement;
     private float verticalRotation;
     private GameObject teleportMarkerInstance;
     private bool hasValidTeleportPoint;
     private Vector3 teleportPoint;
+    private float defaultFOV;
+
     private float CurrentSpeed => walkSpeed * (playerInputHandler.SprintTriggered ? sprintMultiplier : 1);
 
     void Start()
     {
         Cursor.lockState = CursorLockMode.Locked;
         Cursor.visible = false;
+
+        if (teleportMarkerPrefab != null)
+        {
+            teleportMarkerInstance = Instantiate(teleportMarkerPrefab);
+            teleportMarkerInstance.SetActive(false);
+        }
+
+        defaultFOV = mainCamera.fieldOfView;
 
         if (teleportMarkerPrefab != null)
         {
@@ -51,6 +70,8 @@ public class FirstPersonController : MonoBehaviour
         HandleMovement();
         HandleRotation();
         HandleTeleportation();
+       
+        UpdateMarkerPulse();
     }
 
     private Vector3 CalculateWorldDirection()
@@ -113,28 +134,28 @@ public class FirstPersonController : MonoBehaviour
     {
         if (playerInputHandler.TeleportTriggered)
         {
-            Ray ray = new Ray(mainCamera.transform.position, mainCamera.transform.forward);
-            RaycastHit hit;
+            Time.timeScale = aimTimeScale;
+            Time.fixedDeltaTime = 0.02f * Time.timeScale; 
+            mainCamera.fieldOfView = Mathf.Lerp(mainCamera.fieldOfView, zoomFOV, Time.unscaledDeltaTime * zoomSpeed);
 
-            if (Physics.Raycast(ray, out hit, teleportRange, teleportMask))
+            FindTeleportPoint();
+
+            if (hasValidTeleportPoint && teleportMarkerInstance != null)
             {
-                hasValidTeleportPoint = true;
-                teleportPoint = hit.point;
-                if (teleportMarkerInstance != null)
-                {
-                    teleportMarkerInstance.transform.position = hit.point + Vector3.up * markerYOffset;
-                    teleportMarkerInstance.SetActive(true);
-                }
+                teleportMarkerInstance.transform.position = teleportPoint + Vector3.up * markerYOffset;
+                teleportMarkerInstance.SetActive(true);
             }
-            else
+            else if (teleportMarkerInstance != null)
             {
-                hasValidTeleportPoint = false;
-                if (teleportMarkerInstance != null)
-                    teleportMarkerInstance.SetActive(false);
+                teleportMarkerInstance.SetActive(false);
             }
         }
         else
         {
+            Time.timeScale = 1f;
+            Time.fixedDeltaTime = 0.02f;
+            mainCamera.fieldOfView = Mathf.Lerp(mainCamera.fieldOfView, defaultFOV, Time.unscaledDeltaTime * zoomSpeed);
+
             if (hasValidTeleportPoint)
             {
                 characterController.enabled = false;
@@ -146,6 +167,38 @@ public class FirstPersonController : MonoBehaviour
                 teleportMarkerInstance.SetActive(false);
 
             hasValidTeleportPoint = false;
+        }
+    }
+    private void FindTeleportPoint()
+    {
+        Ray ray = new Ray(mainCamera.transform.position, mainCamera.transform.forward);
+        RaycastHit hit;
+
+        if (Physics.Raycast(ray, out hit, teleportRange, teleportMask))
+        {
+            hasValidTeleportPoint = true;
+            teleportPoint = hit.point;
+        }
+        else
+        {
+            Vector3 arcStart = mainCamera.transform.position + mainCamera.transform.forward * (teleportRange * 0.8f) + Vector3.up * 2f;
+            if (Physics.Raycast(arcStart, Vector3.down, out hit, 5f, teleportMask))
+            {
+                hasValidTeleportPoint = true;
+                teleportPoint = hit.point;
+            }
+            else
+            {
+                hasValidTeleportPoint = false;
+            }
+        }
+    }
+    private void UpdateMarkerPulse()
+    {
+        if (teleportMarkerInstance != null && teleportMarkerInstance.activeSelf)
+        {
+            float scale = 1f + Mathf.Sin(Time.unscaledTime * pulseSpeed) * pulseScale;
+            teleportMarkerInstance.transform.localScale = Vector3.one * scale;
         }
     }
 
