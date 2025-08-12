@@ -2,6 +2,7 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
+
 public class FirstPersonController : MonoBehaviour
 {
     [Header("Movement Speeds")]
@@ -36,6 +37,11 @@ public class FirstPersonController : MonoBehaviour
     [SerializeField] private float zoomFOV = 40f;
     [SerializeField] private float zoomSpeed = 10f;
 
+    [Header("Visual Effects")]
+    [SerializeField] private CanvasGroup blinkOverlay; 
+    [SerializeField] private float overlayFadeSpeed = 5f;
+    [SerializeField] private float overlayMaxAlpha = 0.4f; 
+
     private Vector3 currentMovement;
     private float verticalRotation;
     private GameObject teleportMarkerInstance;
@@ -50,12 +56,6 @@ public class FirstPersonController : MonoBehaviour
         Cursor.lockState = CursorLockMode.Locked;
         Cursor.visible = false;
 
-        if (teleportMarkerPrefab != null)
-        {
-            teleportMarkerInstance = Instantiate(teleportMarkerPrefab);
-            teleportMarkerInstance.SetActive(false);
-        }
-
         defaultFOV = mainCamera.fieldOfView;
 
         if (teleportMarkerPrefab != null)
@@ -63,15 +63,27 @@ public class FirstPersonController : MonoBehaviour
             teleportMarkerInstance = Instantiate(teleportMarkerPrefab);
             teleportMarkerInstance.SetActive(false);
         }
+
+        if (blinkOverlay != null)
+        {
+            blinkOverlay.alpha = 0f;             
+            blinkOverlay.gameObject.SetActive(false);
+        }
     }
 
     void Update()
     {
+        if (blinkOverlay != null && !playerInputHandler.TeleportTriggered)
+        {
+            blinkOverlay.alpha = 0f;
+            blinkOverlay.gameObject.SetActive(false);
+        }
+
         HandleMovement();
         HandleRotation();
         HandleTeleportation();
-       
         UpdateMarkerPulse();
+        UpdateOverlayFade();
     }
 
     private Vector3 CalculateWorldDirection()
@@ -95,6 +107,19 @@ public class FirstPersonController : MonoBehaviour
         else
         {
             currentMovement.y += Physics.gravity.y * gravityMultiplier * Time.deltaTime;
+            if (blinkOverlay != null)
+            {
+                blinkOverlay.alpha = Mathf.Lerp(blinkOverlay.alpha, 0f, Time.unscaledDeltaTime * overlayFadeSpeed);
+
+                if (blinkOverlay.alpha < 0.01f)
+                    blinkOverlay.gameObject.SetActive(false);
+            }
+        }
+
+        if (blinkOverlay != null)
+        {
+            blinkOverlay.gameObject.SetActive(true);
+            blinkOverlay.alpha = Mathf.Lerp(blinkOverlay.alpha, overlayMaxAlpha, Time.unscaledDeltaTime * overlayFadeSpeed);
         }
     }
 
@@ -135,7 +160,7 @@ public class FirstPersonController : MonoBehaviour
         if (playerInputHandler.TeleportTriggered)
         {
             Time.timeScale = aimTimeScale;
-            Time.fixedDeltaTime = 0.02f * Time.timeScale; 
+            Time.fixedDeltaTime = 0.02f * Time.timeScale;
             mainCamera.fieldOfView = Mathf.Lerp(mainCamera.fieldOfView, zoomFOV, Time.unscaledDeltaTime * zoomSpeed);
 
             FindTeleportPoint();
@@ -148,6 +173,12 @@ public class FirstPersonController : MonoBehaviour
             else if (teleportMarkerInstance != null)
             {
                 teleportMarkerInstance.SetActive(false);
+            }
+
+            if (blinkOverlay != null)
+            {
+                blinkOverlay.gameObject.SetActive(true);
+                blinkOverlay.alpha = Mathf.Lerp(blinkOverlay.alpha, overlayMaxAlpha, Time.unscaledDeltaTime * overlayFadeSpeed);
             }
         }
         else
@@ -167,6 +198,14 @@ public class FirstPersonController : MonoBehaviour
                 teleportMarkerInstance.SetActive(false);
 
             hasValidTeleportPoint = false;
+
+            if (blinkOverlay != null)
+            {
+                blinkOverlay.alpha = Mathf.Lerp(blinkOverlay.alpha, 0f, Time.unscaledDeltaTime * overlayFadeSpeed);
+
+                if (blinkOverlay.alpha < 0.01f)
+                    blinkOverlay.gameObject.SetActive(false);
+            }
         }
     }
     private void FindTeleportPoint()
@@ -200,6 +239,10 @@ public class FirstPersonController : MonoBehaviour
             float scale = 1f + Mathf.Sin(Time.unscaledTime * pulseSpeed) * pulseScale;
             teleportMarkerInstance.transform.localScale = Vector3.one * scale;
         }
+    }
+
+    private void UpdateOverlayFade()
+    {
     }
 
 }
