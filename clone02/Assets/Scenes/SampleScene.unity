@@ -673,7 +673,7 @@ MonoBehaviour:
   pulseSpeed: 3
   pulseScale: 0.2
   aimTimeScale: 0.9
-  zoomFOV: 40
+  zoomFOV: 50
   zoomSpeed: 10
   blinkOverlay: {fileID: 1194667408}
   overlayFadeSpeed: 1
