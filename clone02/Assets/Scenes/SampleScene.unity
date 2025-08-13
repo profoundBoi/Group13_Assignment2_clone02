@@ -552,10 +552,11 @@ MonoBehaviour:
   gravityMultiplier: 1
   mouseSensitivity: 0.1
   upDownLookRange: 80
+  controllerSensitivity: 2
   characterController: {fileID: 484754759}
   mainCamera: {fileID: 330585545}
   playerInputHandler: {fileID: 2030061152}
-  teleportRange: 15
+  teleportRange: 20
   teleportMask:
     serializedVersion: 2
     m_Bits: 64
@@ -564,7 +565,7 @@ MonoBehaviour:
   markerYOffset: 0.05
   pulseSpeed: 3
   pulseScale: 0.2
-  aimTimeScale: 0.3
+  aimTimeScale: 0.9
   zoomFOV: 40
   zoomSpeed: 10
   blinkOverlay: {fileID: 1194667408}
