@@ -1,4 +1,4 @@
-using System.Collections;
+﻿using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -14,7 +14,7 @@ public class FirstPersonController : MonoBehaviour
     [SerializeField] private float gravityMultiplier = 1.0f;
 
     [Header("Look Parameters")]
-    [SerializeField] private float mouseSensitivity = 0.1f;
+    [SerializeField] private float mouseSensitivity = 0.005f;
     [SerializeField] private float upDownLookRange = 80f;
     [SerializeField] private float controllerSensitivity = 2.0f;
 
@@ -41,7 +41,17 @@ public class FirstPersonController : MonoBehaviour
     [Header("Visual Effects")]
     [SerializeField] private CanvasGroup blinkOverlay; 
     [SerializeField] private float overlayFadeSpeed = 5f;
-    [SerializeField] private float overlayMaxAlpha = 0.4f; 
+    [SerializeField] private float overlayMaxAlpha = 0.4f;
+
+    [Header("Sneak Settings")]
+    [SerializeField] private float crouchHeight = 1.0f;
+    [SerializeField] private float standingHeight = 2.0f;
+    [SerializeField] private float crouchSpeedMultiplier = 0.5f;
+    [SerializeField] private Transform cameraTransform;
+    [SerializeField] private float crouchCameraOffset = -0.5f;
+    [SerializeField] private KeyCode crouchKey = KeyCode.Tab;
+    [SerializeField] private UnityEngine.UI.Image walkIcon;
+    [SerializeField] private UnityEngine.UI.Image sneakIcon;
 
     private Vector3 currentMovement;
     private float verticalRotation;
@@ -49,8 +59,30 @@ public class FirstPersonController : MonoBehaviour
     private bool hasValidTeleportPoint;
     private Vector3 teleportPoint;
     private float defaultFOV;
+    private bool isCrouched = false;
+    private float originalCameraY;
+    private bool isBlinking => playerInputHandler.TeleportTriggered;
+    private float currentOverlayAlpha = 0f;
 
-    private float CurrentSpeed => walkSpeed * (playerInputHandler.SprintTriggered ? sprintMultiplier : 1);
+    private float CurrentSpeed
+    {
+        get
+        {
+            if (isCrouched)
+                return walkSpeed * crouchSpeedMultiplier;
+            return walkSpeed * (playerInputHandler.SprintTriggered ? sprintMultiplier : 1);
+        }
+    }
+
+    public bool IsSneaking => isCrouched;
+
+    public bool UsingController
+    {
+        get
+        {
+            return Input.GetJoystickNames().Length > 0;
+        }
+    }
 
     void Start()
     {
@@ -58,6 +90,7 @@ public class FirstPersonController : MonoBehaviour
         Cursor.visible = false;
 
         defaultFOV = mainCamera.fieldOfView;
+        originalCameraY = cameraTransform.localPosition.y;
 
         if (teleportMarkerPrefab != null)
         {
@@ -67,7 +100,7 @@ public class FirstPersonController : MonoBehaviour
 
         if (blinkOverlay != null)
         {
-            blinkOverlay.alpha = 0f;             
+            blinkOverlay.alpha = 0f;
             blinkOverlay.gameObject.SetActive(false);
         }
     }
@@ -80,13 +113,24 @@ public class FirstPersonController : MonoBehaviour
             blinkOverlay.gameObject.SetActive(false);
         }
 
+        HandleCrouchToggle();
         HandleMovement();
         HandleRotation();
         HandleTeleportation();
         UpdateMarkerPulse();
-        UpdateOverlayFade();
+        UpdateSneakUI();
+        UpdateBlinkOverlay();
     }
+    private void UpdateBlinkOverlay()
+    {
+        if (blinkOverlay == null) return;
 
+        float targetAlpha = isBlinking ? overlayMaxAlpha : 0f;
+        currentOverlayAlpha = Mathf.MoveTowards(currentOverlayAlpha, targetAlpha, overlayFadeSpeed * Time.unscaledDeltaTime);
+
+        blinkOverlay.alpha = currentOverlayAlpha;
+        blinkOverlay.gameObject.SetActive(currentOverlayAlpha > 0f);
+    }
     private Vector3 CalculateWorldDirection()
     {
         Vector3 inputDirection = new Vector3(playerInputHandler.MovementInput.x, 0f, playerInputHandler.MovementInput.y);
@@ -99,28 +143,12 @@ public class FirstPersonController : MonoBehaviour
         if (characterController.isGrounded)
         {
             currentMovement.y = -0.5f;
-
             if (playerInputHandler.JumpTriggered)
-            {
                 currentMovement.y = jumpForce;
-            }
         }
         else
         {
             currentMovement.y += Physics.gravity.y * gravityMultiplier * Time.deltaTime;
-            if (blinkOverlay != null)
-            {
-                blinkOverlay.alpha = Mathf.Lerp(blinkOverlay.alpha, 0f, Time.unscaledDeltaTime * overlayFadeSpeed);
-
-                if (blinkOverlay.alpha < 0.01f)
-                    blinkOverlay.gameObject.SetActive(false);
-            }
-        }
-
-        if (blinkOverlay != null)
-        {
-            blinkOverlay.gameObject.SetActive(true);
-            blinkOverlay.alpha = Mathf.Lerp(blinkOverlay.alpha, overlayMaxAlpha, Time.unscaledDeltaTime * overlayFadeSpeed);
         }
     }
 
@@ -129,7 +157,6 @@ public class FirstPersonController : MonoBehaviour
         Vector3 worldDirection = CalculateWorldDirection();
         currentMovement.x = worldDirection.x * CurrentSpeed;
         currentMovement.z = worldDirection.z * CurrentSpeed;
-
 
         HandleJumping();
         characterController.Move(currentMovement * Time.deltaTime);
@@ -148,12 +175,11 @@ public class FirstPersonController : MonoBehaviour
 
     private void HandleRotation()
     {
-        float mouseXRotation = playerInputHandler.RotationInput.x * mouseSensitivity;
-        float mouseYRotation = playerInputHandler.RotationInput.y * mouseSensitivity;
+        float horizontalRotation = playerInputHandler.RotationInput.x * mouseSensitivity;
+        float verticalRotationDelta = playerInputHandler.RotationInput.y * mouseSensitivity;
 
-
-        ApplyHorizontalRotation(mouseXRotation);
-        ApplyVerticalRotation(mouseYRotation);
+        ApplyHorizontalRotation(horizontalRotation);
+        ApplyVerticalRotation(verticalRotationDelta);
     }
 
     private void HandleTeleportation()
@@ -168,25 +194,19 @@ public class FirstPersonController : MonoBehaviour
 
             if (hasValidTeleportPoint && teleportMarkerInstance != null)
             {
-                teleportMarkerInstance.transform.position = teleportPoint + Vector3.up * markerYOffset;
+                teleportMarkerInstance.transform.position = teleportPoint + Vector3.up * 0.05f;
                 teleportMarkerInstance.SetActive(true);
             }
             else if (teleportMarkerInstance != null)
             {
                 teleportMarkerInstance.SetActive(false);
             }
-
-            if (blinkOverlay != null)
-            {
-                blinkOverlay.gameObject.SetActive(true);
-                blinkOverlay.alpha = Mathf.Lerp(blinkOverlay.alpha, overlayMaxAlpha, Time.unscaledDeltaTime * overlayFadeSpeed);
-            }
         }
         else
         {
             Time.timeScale = 1f;
             Time.fixedDeltaTime = 0.02f;
-            mainCamera.fieldOfView = Mathf.Lerp(mainCamera.fieldOfView, defaultFOV, Time.unscaledDeltaTime * zoomSpeed);
+            mainCamera.fieldOfView = Mathf.Lerp(mainCamera.fieldOfView, defaultFOV, Time.unscaledDeltaTime * 10f);
 
             if (hasValidTeleportPoint)
             {
@@ -199,16 +219,9 @@ public class FirstPersonController : MonoBehaviour
                 teleportMarkerInstance.SetActive(false);
 
             hasValidTeleportPoint = false;
-
-            if (blinkOverlay != null)
-            {
-                blinkOverlay.alpha = Mathf.Lerp(blinkOverlay.alpha, 0f, Time.unscaledDeltaTime * overlayFadeSpeed);
-
-                if (blinkOverlay.alpha < 0.01f)
-                    blinkOverlay.gameObject.SetActive(false);
-            }
         }
     }
+
     private void FindTeleportPoint()
     {
         Ray ray = new Ray(mainCamera.transform.position, mainCamera.transform.forward);
@@ -233,6 +246,7 @@ public class FirstPersonController : MonoBehaviour
             }
         }
     }
+
     private void UpdateMarkerPulse()
     {
         if (teleportMarkerInstance != null && teleportMarkerInstance.activeSelf)
@@ -242,8 +256,48 @@ public class FirstPersonController : MonoBehaviour
         }
     }
 
-    private void UpdateOverlayFade()
+    private void UpdateSneakUI()
     {
+        if (walkIcon != null) walkIcon.enabled = !IsSneaking;
+        if (sneakIcon != null) sneakIcon.enabled = IsSneaking;
     }
+
+
+    private void HandleCrouchToggle()
+    {
+        if (playerInputHandler.SneakPressedThisFrame)
+        {
+            isCrouched = !isCrouched;
+
+            if (isCrouched)
+            {
+                characterController.height = crouchHeight;
+                cameraTransform.localPosition = new Vector3(
+                    cameraTransform.localPosition.x,
+                    originalCameraY + crouchCameraOffset,
+                    cameraTransform.localPosition.z
+                );
+            }
+            else
+            {
+                RaycastHit hit;
+                float headClearance = standingHeight - crouchHeight;
+                if (!Physics.Raycast(transform.position, Vector3.up, out hit, headClearance))
+                {
+                    characterController.height = standingHeight;
+                    cameraTransform.localPosition = new Vector3(
+                        cameraTransform.localPosition.x,
+                        originalCameraY,
+                        cameraTransform.localPosition.z
+                    );
+                }
+                else
+                {
+                    isCrouched = true; 
+                }
+            }
+        }
+    }
+
 
 }

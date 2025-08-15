@@ -6,147 +6,138 @@ using UnityEngine.AI;
 public class Enemy : MonoBehaviour
 {
     enum EnemyState { Idle, Patrol, Chase }
-    enum EnemyType { Walker, Shooter }
 
     [Header("General Settings")]
     public NavMeshAgent agent;
-    [SerializeField] private EnemyType enemyType;
+    public Transform player;
+    private FirstPersonController playerController; 
 
     [SerializeField] private Transform waypoints;
     [SerializeField] private float waitAtPoint = 2f;
+    [SerializeField] private float chaseRange = 8f;
+    [SerializeField] private float fovAngle = 90f;
+
     private int currentWaypoint;
     private float waitCounter;
+    private EnemyState state;
 
-    [SerializeField] private EnemyState enemyState;
-
-    [SerializeField] private float chaseRange;
-    [SerializeField] private float suspiciousTime;
-    private float timeSeenPlayer;
-
-    [SerializeField] private float bufferDistance;
-
-    [Header("Walker Settings")]
-    [SerializeField] private float hitRange = 1.5f;
-    [SerializeField] private int damage = 10;
-
-    [Header("Shooter Settings")]
-    [SerializeField] private float shootRange = 10f;
-    [SerializeField] private GameObject projectilePrefab;
-    [SerializeField] private Transform firePoint;
-    [SerializeField] private float fireRate = 1f;
-    private float fireCooldown;
-
-    private GameObject player;
+    private MeshRenderer fovRenderer;
+    private MeshFilter fovFilter;
+    private Mesh fovMesh;
 
     private void Start()
     {
-        agent = GetComponent<NavMeshAgent>();
-        player = GameObject.FindGameObjectWithTag("Player");
+        if (waypoints != null && waypoints.childCount > 0)
+        {
+            currentWaypoint = 0;
+            agent.SetDestination(waypoints.GetChild(currentWaypoint).position);
+            state = EnemyState.Patrol;
+        }
+        else
+        {
+            state = EnemyState.Idle;
+        }
 
-        waitCounter = waitAtPoint;
-        timeSeenPlayer = suspiciousTime;
+        if (player == null)
+            player = GameObject.FindGameObjectWithTag("Player").transform;
+
+        if (player != null)
+            playerController = player.GetComponent<FirstPersonController>();
+
+        GameObject fovObject = new GameObject("FOV Mesh");
+        fovObject.transform.SetParent(transform);
+        fovObject.transform.localPosition = Vector3.zero;
+        fovObject.transform.localRotation = Quaternion.identity;
+
+        fovRenderer = fovObject.AddComponent<MeshRenderer>();
+        fovRenderer.material = new Material(Shader.Find("Unlit/Color"));
+        fovRenderer.material.color = new Color(1f, 1f, 0f, 0.25f); 
+
+        fovFilter = fovObject.AddComponent<MeshFilter>();
+        fovMesh = new Mesh();
+        fovFilter.mesh = fovMesh;
     }
 
     private void Update()
     {
-        float distancetoPlayer = Vector3.Distance(transform.position, player.transform.position);
+        float distancetoPlayer = Vector3.Distance(transform.position, player.position);
 
-        switch (enemyState)
+        float effectiveChaseRange = chaseRange;
+        if (playerController != null && playerController.IsSneaking)
+        {
+            effectiveChaseRange *= 0.5f;
+        }
+
+        switch (state)
         {
             case EnemyState.Idle:
-                if (waitCounter > 0)
+                if (distancetoPlayer <= effectiveChaseRange)
                 {
-                    waitCounter -= Time.deltaTime;
-                }
-                else
-                {
-                    enemyState = EnemyState.Patrol;
-                    agent.SetDestination(waypoints.GetChild(currentWaypoint).position);
-                }
-
-                if (distancetoPlayer <= chaseRange)
-                {
-                    enemyState = EnemyState.Chase;
+                    state = EnemyState.Chase;
                 }
                 break;
 
             case EnemyState.Patrol:
-                if (agent.remainingDistance <= 0.1f)
+                if (!agent.pathPending && agent.remainingDistance < 0.2f)
                 {
-                    currentWaypoint++;
-                    if (currentWaypoint >= waypoints.childCount)
-                        currentWaypoint = 0;
-
-                    enemyState = EnemyState.Idle;
-                    waitCounter = waitAtPoint;
+                    waitCounter += Time.deltaTime;
+                    if (waitCounter >= waitAtPoint)
+                    {
+                        currentWaypoint = (currentWaypoint + 1) % waypoints.childCount;
+                        agent.SetDestination(waypoints.GetChild(currentWaypoint).position);
+                        waitCounter = 0f;
+                    }
                 }
 
-                if (distancetoPlayer <= chaseRange)
+                if (distancetoPlayer <= effectiveChaseRange)
                 {
-                    enemyState = EnemyState.Chase;
+                    state = EnemyState.Chase;
                 }
                 break;
 
             case EnemyState.Chase:
-                if (enemyType == EnemyType.Walker)
+                agent.SetDestination(player.position);
+                if (distancetoPlayer > effectiveChaseRange)
                 {
-                    agent.isStopped = false;
-                    agent.SetDestination(player.transform.position);
-
-                    if (distancetoPlayer <= hitRange)
-                    {
-                        Debug.Log("Walker hits player for " + damage);                   
-                    }
-                }
-                else if (enemyType == EnemyType.Shooter)
-                {
-                    agent.isStopped = true;
-                    transform.LookAt(player.transform.position);
-
-                    if (distancetoPlayer <= shootRange)
-                    {
-                        if (fireCooldown <= 0f)
-                        {
-                            Shoot();
-                            fireCooldown = fireRate;
-                        }
-                    }
-                }
-
-                if (distancetoPlayer > chaseRange)
-                {
-                    timeSeenPlayer -= Time.deltaTime;
-
-                    if (timeSeenPlayer <= 0)
-                    {
-                        enemyState = EnemyState.Idle;
-                        timeSeenPlayer = suspiciousTime;
-                        agent.isStopped = false;
-                    }
-                }
-                else
-                {
-                    timeSeenPlayer = suspiciousTime;
+                    state = EnemyState.Patrol;
+                    agent.SetDestination(waypoints.GetChild(currentWaypoint).position);
                 }
                 break;
         }
 
-        if (fireCooldown > 0f)
-            fireCooldown -= Time.deltaTime;
+        UpdateFOVVisual(effectiveChaseRange);
     }
 
-    private void Shoot()
+    private void UpdateFOVVisual(float range)
     {
-        if (projectilePrefab && firePoint)
-        {
-            GameObject bullet = Instantiate(projectilePrefab, firePoint.position, firePoint.rotation);
-            Rigidbody rb = bullet.GetComponent<Rigidbody>();
+        int segments = 20;
+        float angleStep = fovAngle / segments;
+        List<Vector3> vertices = new List<Vector3>();
+        List<int> triangles = new List<int>();
 
-            if (rb)
-            {
-                float bulletSpeed = 20f; 
-                rb.AddForce(firePoint.forward * bulletSpeed, ForceMode.Impulse);
-            }
+        vertices.Add(Vector3.zero);
+
+        for (int i = 0; i <= segments; i++)
+        {
+            float angle = (-fovAngle / 2) + (i * angleStep);
+            float rad = angle * Mathf.Deg2Rad;
+            Vector3 dir = new Vector3(Mathf.Sin(rad), 0, Mathf.Cos(rad));
+            vertices.Add(dir * range);
         }
+
+        for (int i = 1; i <= segments; i++)
+        {
+            triangles.Add(0);
+            triangles.Add(i);
+            triangles.Add(i + 1);
+        }
+
+        fovMesh.Clear();
+        fovMesh.vertices = vertices.ToArray();
+        fovMesh.triangles = triangles.ToArray();
+        fovMesh.RecalculateNormals();
+
+        fovRenderer.transform.localPosition = Vector3.zero;
+        fovRenderer.transform.localRotation = Quaternion.identity;
     }
 }
