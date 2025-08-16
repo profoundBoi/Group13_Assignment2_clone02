@@ -1,6 +1,7 @@
 ﻿using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.UI;
 
 
 public class FirstPersonController : MonoBehaviour
@@ -50,8 +51,13 @@ public class FirstPersonController : MonoBehaviour
     [SerializeField] private Transform cameraTransform;
     [SerializeField] private float crouchCameraOffset = -0.5f;
     [SerializeField] private KeyCode crouchKey = KeyCode.Tab;
-    [SerializeField] private UnityEngine.UI.Image walkIcon;
-    [SerializeField] private UnityEngine.UI.Image sneakIcon;
+    [SerializeField] private RawImage walkIcon;
+    [SerializeField] private RawImage sneakIcon;
+
+    [Header("Teleport Stamina")]
+    [SerializeField] private int maxTeleportCharges = 3;
+    [SerializeField] private float rechargeTime = 5f;
+    [SerializeField] private Slider staminaSlider;
 
     private Vector3 currentMovement;
     private float verticalRotation;
@@ -61,6 +67,9 @@ public class FirstPersonController : MonoBehaviour
     private float defaultFOV;
     private bool isCrouched = false;
     private float originalCameraY;
+    private int currentCharges;
+    private float currentStamina;
+    private float rechargeTimer;
     private bool isBlinking => playerInputHandler.TeleportTriggered;
     private float currentOverlayAlpha = 0f;
 
@@ -76,14 +85,6 @@ public class FirstPersonController : MonoBehaviour
 
     public bool IsSneaking => isCrouched;
 
-    public bool UsingController
-    {
-        get
-        {
-            return Input.GetJoystickNames().Length > 0;
-        }
-    }
-
     void Start()
     {
         Cursor.lockState = CursorLockMode.Locked;
@@ -91,6 +92,16 @@ public class FirstPersonController : MonoBehaviour
 
         defaultFOV = mainCamera.fieldOfView;
         originalCameraY = cameraTransform.localPosition.y;
+
+        currentCharges = maxTeleportCharges;
+        currentStamina = maxTeleportCharges;
+
+        if (staminaSlider != null)
+        {
+            staminaSlider.maxValue = maxTeleportCharges;
+            staminaSlider.value = currentStamina;
+            staminaSlider.interactable = false;
+        }
 
         if (teleportMarkerPrefab != null)
         {
@@ -107,12 +118,6 @@ public class FirstPersonController : MonoBehaviour
 
     void Update()
     {
-        if (blinkOverlay != null && !playerInputHandler.TeleportTriggered)
-        {
-            blinkOverlay.alpha = 0f;
-            blinkOverlay.gameObject.SetActive(false);
-        }
-
         HandleCrouchToggle();
         HandleMovement();
         HandleRotation();
@@ -121,6 +126,7 @@ public class FirstPersonController : MonoBehaviour
         UpdateSneakUI();
         UpdateBlinkOverlay();
     }
+
     private void UpdateBlinkOverlay()
     {
         if (blinkOverlay == null) return;
@@ -131,6 +137,7 @@ public class FirstPersonController : MonoBehaviour
         blinkOverlay.alpha = currentOverlayAlpha;
         blinkOverlay.gameObject.SetActive(currentOverlayAlpha > 0f);
     }
+
     private Vector3 CalculateWorldDirection()
     {
         Vector3 inputDirection = new Vector3(playerInputHandler.MovementInput.x, 0f, playerInputHandler.MovementInput.y);
@@ -184,7 +191,7 @@ public class FirstPersonController : MonoBehaviour
 
     private void HandleTeleportation()
     {
-        if (playerInputHandler.TeleportTriggered)
+        if (playerInputHandler.TeleportTriggered && currentCharges > 0)
         {
             Time.timeScale = aimTimeScale;
             Time.fixedDeltaTime = 0.02f * Time.timeScale;
@@ -202,17 +209,22 @@ public class FirstPersonController : MonoBehaviour
                 teleportMarkerInstance.SetActive(false);
             }
         }
-        else
+        else if (!playerInputHandler.TeleportTriggered)
         {
             Time.timeScale = 1f;
             Time.fixedDeltaTime = 0.02f;
             mainCamera.fieldOfView = Mathf.Lerp(mainCamera.fieldOfView, defaultFOV, Time.unscaledDeltaTime * 10f);
 
-            if (hasValidTeleportPoint)
+            if (hasValidTeleportPoint && currentCharges > 0)
             {
                 characterController.enabled = false;
                 transform.position = teleportPoint;
                 characterController.enabled = true;
+
+                currentCharges--;
+                currentStamina = currentCharges;
+                rechargeTimer = 0f;
+                UpdateStaminaUI();
             }
 
             if (teleportMarkerInstance != null)
@@ -220,6 +232,8 @@ public class FirstPersonController : MonoBehaviour
 
             hasValidTeleportPoint = false;
         }
+
+        HandleTeleportRecharge();
     }
 
     private void FindTeleportPoint()
@@ -262,7 +276,6 @@ public class FirstPersonController : MonoBehaviour
         if (sneakIcon != null) sneakIcon.enabled = IsSneaking;
     }
 
-
     private void HandleCrouchToggle()
     {
         if (playerInputHandler.SneakPressedThisFrame)
@@ -293,11 +306,36 @@ public class FirstPersonController : MonoBehaviour
                 }
                 else
                 {
-                    isCrouched = true; 
+                    isCrouched = true;
                 }
             }
         }
     }
 
+    private void HandleTeleportRecharge()
+    {
+        if (currentCharges < maxTeleportCharges)
+        {
+            rechargeTimer += Time.deltaTime;
+
+            float fraction = rechargeTimer / rechargeTime;
+            currentStamina = currentCharges + Mathf.Clamp01(fraction);
+
+            if (rechargeTimer >= rechargeTime)
+            {
+                currentCharges++;
+                rechargeTimer = 0f;
+                currentStamina = currentCharges;
+            }
+
+            UpdateStaminaUI();
+        }
+    }
+
+    private void UpdateStaminaUI()
+    {
+        if (staminaSlider != null)
+            staminaSlider.value = currentStamina;
+    }
 
 }
