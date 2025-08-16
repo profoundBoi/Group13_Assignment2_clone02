@@ -217,9 +217,18 @@ public class FirstPersonController : MonoBehaviour
 
             if (hasValidTeleportPoint && currentCharges > 0)
             {
+                RaycastHit groundHit; 
+                Vector3 safeTeleportPoint = teleportPoint;
+                if (Physics.Raycast(teleportPoint + Vector3.up, Vector3.down, out groundHit, 5f, teleportMask))
+                {
+                    safeTeleportPoint = groundHit.point; 
+                }
+
                 characterController.enabled = false;
-                transform.position = teleportPoint;
+                transform.position = safeTeleportPoint + Vector3.up * 0.1f; 
                 characterController.enabled = true;
+
+                currentMovement = Vector3.zero;
 
                 currentCharges--;
                 currentStamina = currentCharges;

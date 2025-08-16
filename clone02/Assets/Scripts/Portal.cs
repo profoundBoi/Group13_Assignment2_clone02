@@ -12,10 +12,10 @@ public class Portal : MonoBehaviour
 
     private void OnTriggerEnter(Collider other)
     {
-        if (other.CompareTag("Player01"))
+        if (other.CompareTag("Player"))
         {
             StartCoroutine(TeleportWithFlash(other.gameObject, flashPanelPlayer01));
-            Debug.Log("Player01 teleported");
+            Debug.Log("Player teleported");
         }
         else if (other.CompareTag("Player02"))
         {
