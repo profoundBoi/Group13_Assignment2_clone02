@@ -1,4 +1,4 @@
-using System.Collections;
+﻿using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.InputSystem;
@@ -32,6 +32,40 @@ public class PlayerInputHandler : MonoBehaviour
     public bool JumpTriggered { get; private set; }
     public bool SprintTriggered { get; private set; }
     public bool TeleportTriggered { get; private set; }
+
+
+
+
+
+    private bool teleportPressedThisFrame = false;
+    private bool teleportReleasedThisFrame = false;
+
+   
+    public bool TeleportPressedThisFrame
+    {
+        get
+        {
+            if (teleportPressedThisFrame)
+            {
+                teleportPressedThisFrame = false;
+                return true;
+            }
+            return false;
+        }
+    }
+
+    public bool TeleportReleasedThisFrame
+    {
+        get
+        {
+            if (teleportReleasedThisFrame)
+            {
+                teleportReleasedThisFrame = false;
+                return true;
+            }
+            return false;
+        }
+    }
 
     public bool SneakPressedThisFrame
     {
@@ -78,6 +112,17 @@ public class PlayerInputHandler : MonoBehaviour
         teleportAction.canceled += _ => TeleportTriggered = false;
 
         sneakAction.performed += _ => sneakPressedThisFrame = true;
+        teleportAction.performed += _ =>
+        {
+            TeleportTriggered = true;
+            teleportPressedThisFrame = true;
+        };
+
+        teleportAction.canceled += _ =>
+        {
+            TeleportTriggered = false;
+            teleportReleasedThisFrame = true;
+        };
     }
     public bool UsingController
     {

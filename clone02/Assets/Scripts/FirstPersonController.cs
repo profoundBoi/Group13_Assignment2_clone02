@@ -23,12 +23,14 @@ public class FirstPersonController : MonoBehaviour
     [SerializeField] private CharacterController characterController;
     [SerializeField] private Camera mainCamera;
     [SerializeField] private PlayerInputHandler playerInputHandler;
+    [SerializeField] private Animator playerAnimator;
 
     [Header("Teleport Settings")]
     [SerializeField] private float teleportRange = 15f;
     [SerializeField] private LayerMask teleportMask; 
     [SerializeField] private GameObject teleportMarkerPrefab;
     [SerializeField] private float markerYOffset = 0.05f;
+   
 
     [Header("Teleport Visuals")]
     [SerializeField] private float pulseSpeed = 3f;
@@ -224,6 +226,16 @@ public class FirstPersonController : MonoBehaviour
                     safeTeleportPoint = groundHit.point; 
                 }
 
+                if (playerAnimator != null)
+                {
+                    playerAnimator.SetTrigger("Teleport");
+                }
+
+                // 🔹 Move player after triggering animation
+                characterController.enabled = false;
+                transform.position = safeTeleportPoint + Vector3.up * 0.1f;
+                characterController.enabled = true;
+
                 characterController.enabled = false;
                 transform.position = safeTeleportPoint + Vector3.up * 0.1f; 
                 characterController.enabled = true;
@@ -244,6 +256,7 @@ public class FirstPersonController : MonoBehaviour
 
         HandleTeleportRecharge();
     }
+
 
     private void FindTeleportPoint()
     {
