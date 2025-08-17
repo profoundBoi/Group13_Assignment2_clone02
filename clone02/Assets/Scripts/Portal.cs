@@ -8,7 +8,7 @@ public class Portal : MonoBehaviour
 
     [Header("Flash Panels")]
     [SerializeField] CanvasGroup flashPanelPlayer01;
-    [SerializeField] CanvasGroup flashPanelPlayer02;
+   
 
     private void OnTriggerEnter(Collider other)
     {
@@ -17,11 +17,7 @@ public class Portal : MonoBehaviour
             StartCoroutine(TeleportWithFlash(other.gameObject, flashPanelPlayer01));
             Debug.Log("Player teleported");
         }
-        else if (other.CompareTag("Player02"))
-        {
-            StartCoroutine(TeleportWithFlash(other.gameObject, flashPanelPlayer02));
-            Debug.Log("Player02 teleported");
-        }
+   
     }
 
     IEnumerator TeleportWithFlash(GameObject player, CanvasGroup flashPanel)
