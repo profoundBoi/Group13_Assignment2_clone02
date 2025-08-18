@@ -231,7 +231,6 @@ public class FirstPersonController : MonoBehaviour
                     playerAnimator.SetTrigger("Teleport");
                 }
 
-                // 🔹 Move player after triggering animation
                 characterController.enabled = false;
                 transform.position = safeTeleportPoint + Vector3.up * 0.1f;
                 characterController.enabled = true;
