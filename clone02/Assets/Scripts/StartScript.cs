@@ -17,10 +17,13 @@ public class StartScript : MonoBehaviour
     {
         
     }
-
+    public void close()
+    {
+        ContPanel.SetActive(false);
+    } 
     public void Play()
     {
-        SceneManager.LoadScene("Sample Scene");
+        SceneManager.LoadScene("SampleScene");
     }
 
     public void Cont()
