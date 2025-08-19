@@ -4,62 +4,45 @@ using UnityEngine;
 
 public class Switch : MonoBehaviour
 {
-    public GameObject interactPrompt;
+    public GameObject interactPrompt; 
     public float interactDistance = 2f;
+    public GameObject door;        
 
-    private GameObject switchObj;
     private bool switchPressed = false;
+    private Transform player;
 
     void Start()
     {
         if (interactPrompt != null)
             interactPrompt.SetActive(false);
+
+        player = GameObject.FindGameObjectWithTag("Player").transform;
     }
 
     void Update()
     {
         if (switchPressed) return;
 
-        SwitchObject();
+        float distance = Vector3.Distance(player.position, transform.position);
 
-        if (switchObj != null)
+        if (distance <= interactDistance)
         {
-            float distance = Vector3.Distance(transform.position, switchObj.transform.position);
-            if (distance <= interactDistance)
-            {
-                interactPrompt.SetActive(true);
+            interactPrompt.SetActive(true);
 
-                if (Input.GetKeyDown(KeyCode.E))
-                {
-                    interactPrompt.SetActive(false);
-                    switchPressed = true;
-                }
-            }
-            else
+            if (Input.GetKeyDown(KeyCode.E))
             {
                 interactPrompt.SetActive(false);
+                switchPressed = true;
+
+                if (door != null)
+                {
+                    door.SetActive(false); 
+                }
             }
         }
         else
         {
             interactPrompt.SetActive(false);
-        }
-    }
-
-    private void SwitchObject()
-    {
-        GameObject[] switches = GameObject.FindGameObjectsWithTag("Switch");
-        float minDistance = Mathf.Infinity;
-        switchObj = null;
-
-        foreach (GameObject switche in switches)
-        {
-            float dist = Vector3.Distance(transform.position, switche.transform.position);
-            if (dist < minDistance)
-            {
-                minDistance = dist;
-                switchObj = switche;
-            }
         }
     }
 }
