@@ -22,7 +22,11 @@ public class Pause : MonoBehaviour
         {
             EscCounter++;
             Panel.SetActive(true);
+            ControlPanel.SetActive(false);
             Time.timeScale = 0f;
+
+            Cursor.lockState = CursorLockMode.None;
+            Cursor.visible = true; 
 
         }
 
@@ -31,12 +35,21 @@ public class Pause : MonoBehaviour
             Panel.SetActive(false);
             EscCounter = 0;
             Time.timeScale = 1f;
+
+            Cursor.lockState = CursorLockMode.Locked;
+            Cursor.visible = false;
         }
     }
+    public void exitControls()
+    {
+        ControlPanel.SetActive(false);
+        
+    }
+
 
     public void Resume()
     {
-        Panel.SetActive(true );
+        Panel.SetActive(false );
         Time.timeScale = 1f;
     }
 
